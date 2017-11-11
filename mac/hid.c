@@ -376,14 +376,14 @@ int HID_API_EXPORT hid_init(void) {
 
 int HID_API_EXPORT hid_exit(void)
 {
-    pthread_mutex_lock(&mutex_l);
-	if (hid_mgr) {
-		/* Close the HID manager. */
-		IOHIDManagerClose(hid_mgr, kIOHIDOptionsTypeNone);
-		CFRelease(hid_mgr);
-		hid_mgr = NULL;
-	}
-    pthread_mutex_unlock(&mutex_l);
+//    pthread_mutex_lock(&mutex_l);
+//    if (hid_mgr) {
+//        /* Close the HID manager. */
+//        IOHIDManagerClose(hid_mgr, kIOHIDOptionsTypeNone);
+//        CFRelease(hid_mgr);
+//        hid_mgr = NULL;
+//    }
+//    pthread_mutex_unlock(&mutex_l);
 	return 0;
 }
 
@@ -692,12 +692,10 @@ hid_device * HID_API_EXPORT hid_open_path(const char *path)
 	hid_device *dev = NULL;
 	io_registry_entry_t entry = MACH_PORT_NULL;
     
-    pthread_mutex_lock(&mutex_h);
 	dev = new_hid_device();
 
 	/* Set up the HID Manager if it hasn't been done */
     if (hid_init() < 0) {
-        pthread_mutex_unlock(&mutex_h);
 		return NULL;
     }
 
@@ -743,7 +741,6 @@ hid_device * HID_API_EXPORT hid_open_path(const char *path)
 		pthread_barrier_wait(&dev->barrier);
 
 		IOObjectRelease(entry);
-        pthread_mutex_unlock(&mutex_h);
 		return dev;
 	}
 	else {
@@ -756,7 +753,6 @@ return_error:
 
 	if (entry != MACH_PORT_NULL)
 		IOObjectRelease(entry);
-    pthread_mutex_unlock(&mutex_h);
 
 	free_hid_device(dev);
 	return NULL;

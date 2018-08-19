@@ -181,8 +181,6 @@ static void free_hid_device(hid_device *dev)
 	free(dev);
 }
 
-static	IOHIDManagerRef hid_mgr = 0x0;
-
 
 #if 0
 static void register_error(hid_device *device, const char *op)
@@ -347,43 +345,15 @@ static io_service_t hidapi_IOHIDDeviceGetService(IOHIDDeviceRef device)
 	}
 }
 
-/* Initialize the IOHIDManager. Return 0 for success and -1 for failure. */
-static int init_hid_manager(void)
-{
-	/* Initialize all the HID Manager Objects */
-	hid_mgr = IOHIDManagerCreate(kCFAllocatorDefault, kIOHIDOptionsTypeNone);
-	if (hid_mgr) {
-		IOHIDManagerSetDeviceMatching(hid_mgr, NULL);
-		IOHIDManagerScheduleWithRunLoop(hid_mgr, CFRunLoopGetCurrent(), kCFRunLoopDefaultMode);
-		return 0;
-	}
-
-	return -1;
-}
-
 /* Initialize the IOHIDManager if necessary. This is the public function, and
    it is safe to call this function repeatedly. Return 0 for success and -1
    for failure. */
 int HID_API_EXPORT hid_init(void) {
-    int result = 0;
-    pthread_mutex_lock(&mutex_l);
-	if (!hid_mgr) {
-		result = init_hid_manager();
-	}
-    pthread_mutex_unlock(&mutex_l);
-	return result;
+	return 0;
 }
 
 int HID_API_EXPORT hid_exit(void)
 {
-//    pthread_mutex_lock(&mutex_l);
-//    if (hid_mgr) {
-//        /* Close the HID manager. */
-//        IOHIDManagerClose(hid_mgr, kIOHIDOptionsTypeNone);
-//        CFRelease(hid_mgr);
-//        hid_mgr = NULL;
-//    }
-//    pthread_mutex_unlock(&mutex_l);
 	return 0;
 }
 
@@ -401,20 +371,21 @@ struct hid_device_info  HID_API_EXPORT *hid_enumerate(unsigned short vendor_id, 
 	CFIndex num_devices;
 	int i;
 
-    pthread_mutex_lock(&mutex_h);
+	pthread_mutex_lock(&mutex_h);
 
-	/* Set up the HID Manager if it hasn't been done */
-    if (hid_init() < 0) {
-        pthread_mutex_unlock(&mutex_h);
+	IOHIDManagerRef hid_mgr = IOHIDManagerCreate(kCFAllocatorDefault, kIOHIDOptionsTypeNone);
+	if (hid_mgr) {
+		IOHIDManagerSetDeviceMatching(hid_mgr, NULL);
+		IOHIDManagerScheduleWithRunLoop(hid_mgr, CFRunLoopGetCurrent(), kCFRunLoopDefaultMode);
+	} else {
+		pthread_mutex_unlock(&mutex_h);
 		return NULL;
-    }
+	}
 
 	/* give the IOHIDManager a chance to update itself */
 	process_pending_events();
 
 	/* Get a list of the Devices */
-	// https://github.com/signal11/hidapi/issues/114
-	//IOHIDManagerSetDeviceMatching(hid_mgr, NULL);
 	CFSetRef device_set = IOHIDManagerCopyDevices(hid_mgr);
 
 	/* Convert the list into a C array so we can iterate easily. */
@@ -494,7 +465,9 @@ struct hid_device_info  HID_API_EXPORT *hid_enumerate(unsigned short vendor_id, 
 
 	free(device_array);
 	CFRelease(device_set);
-    pthread_mutex_unlock(&mutex_h);
+	IOHIDManagerClose(hid_mgr, kIOHIDOptionsTypeNone);
+	CFRelease(hid_mgr);
+	pthread_mutex_unlock(&mutex_h);
 
 	return root;
 }
